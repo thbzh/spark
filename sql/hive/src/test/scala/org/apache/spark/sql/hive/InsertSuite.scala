@@ -556,6 +556,7 @@ class InsertSuite extends QueryTest with TestHiveSingleton with BeforeAndAfter
     val inputPath = new Path("/tmp/b/c")
     var stagingDir = "tmp/b"
     val saveHiveFile = InsertIntoHiveTable(null, Map.empty, null, false, false, null)
+    saveHiveFile.
     val getStagingDir = PrivateMethod[Path](Symbol("getStagingDir"))
     var path = saveHiveFile invokePrivate getStagingDir(inputPath, conf, stagingDir)
     assert(path.toString.indexOf("/tmp/b_hive_") != -1)

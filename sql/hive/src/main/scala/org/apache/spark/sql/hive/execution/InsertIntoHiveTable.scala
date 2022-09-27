@@ -94,11 +94,14 @@ case class InsertIntoHiveTable(
       // HiveSequenceFileOutputFormat.
       hiveQlTable.getOutputFormatClass,
       hiveQlTable.getMetadata
-    )
+    ) {
+      override def getTableName: String = super.getTableName
+    }
     val tableLocation = hiveQlTable.getDataLocation
     val tmpLocation = getExternalTmpPath(sparkSession, hadoopConf, tableLocation)
 
     try {
+      // 执行函数
       processInsert(sparkSession, externalCatalog, hadoopConf, tableDesc, tmpLocation, child)
     } finally {
       // Attempt to delete the staging directory and the inclusive files. If failed, the files are
@@ -168,7 +171,7 @@ case class InsertIntoHiveTable(
       }
     }
 
-    table.bucketSpec match {
+    table.bucketSpec match { // 分桶表校验
       case Some(bucketSpec) =>
         // Writes to bucketed hive tables are allowed only if user does not care about maintaining
         // table's bucketing ie. both "hive.enforce.bucketing" and "hive.enforce.sorting" are

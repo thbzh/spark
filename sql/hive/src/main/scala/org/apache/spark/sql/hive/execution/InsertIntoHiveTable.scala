@@ -180,7 +180,8 @@ case class InsertIntoHiveTable(
         val enforceSortingConfig = "hive.enforce.sorting"
 
         val message = s"Output Hive table ${table.identifier} is bucketed but Spark " +
-          "currently does NOT populate bucketed output which is compatible with Hive."
+          "currently does NOT populate bucketed output which is compatible with Hive." +
+        " 代码嵌入测试 zcw "
 
         if (hadoopConf.get(enforceBucketingConfig, "true").toBoolean ||
           hadoopConf.get(enforceSortingConfig, "true").toBoolean) {
@@ -204,6 +205,7 @@ case class InsertIntoHiveTable(
       attr.withName(name.toLowerCase(Locale.ROOT))
     }
 
+    // saveAsHiveFile
     val writtenParts = saveAsHiveFile(
       sparkSession = sparkSession,
       plan = child,

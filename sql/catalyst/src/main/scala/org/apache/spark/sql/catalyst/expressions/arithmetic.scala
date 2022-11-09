@@ -503,6 +503,7 @@ case class Remainder(left: Expression, right: Expression) extends DivModLike {
       > SELECT _FUNC_(-10, 3);
        2
   """)
+// 取余函数
 case class Pmod(left: Expression, right: Expression) extends BinaryArithmetic {
 
   override def toString: String = s"pmod($left, $right)"

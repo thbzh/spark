@@ -233,6 +233,7 @@ case class HashPartitioning(expressions: Seq[Expression], numPartitions: Int)
   /**
    * Returns an expression that will produce a valid partition ID(i.e. non-negative and is less
    * than numPartitions) based on hashing expressions.
+   * 关键位置，此处使用的是Murmur3Hash，为兼容hive应该改成hiveHash
    */
   def partitionIdExpression: Expression = Pmod(new Murmur3Hash(expressions), Literal(numPartitions))
 }

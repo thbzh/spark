@@ -545,6 +545,8 @@ final class DataFrameWriter[T] private[sql](ds: Dataset[T]) {
     }
   }
 
+  override def hashCode(): Int = super.hashCode()
+
   /**
    * Saves the content of the `DataFrame` as the specified table.
    *

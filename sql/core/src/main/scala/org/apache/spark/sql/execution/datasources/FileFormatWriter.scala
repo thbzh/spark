@@ -96,14 +96,16 @@ object FileFormatWriter extends Logging {
       options: Map[String, String])
     : Set[String] = {
 
-    val job = Job.getInstance(hadoopConf)
+    val job = Job.getInstance(hadoopConf) // 生成job实例
     job.setOutputKeyClass(classOf[Void])
     job.setOutputValueClass(classOf[InternalRow])
     FileOutputFormat.setOutputPath(job, new Path(outputSpec.outputPath))
 
+    // 分区字段和数据字段
     val partitionSet = AttributeSet(partitionColumns)
     val dataColumns = outputSpec.outputColumns.filterNot(partitionSet.contains)
 
+    // 是否字段类型转换
     var needConvert = false
     val projectList: Seq[NamedExpression] = plan.output.map {
       case p if partitionSet.contains(p) && p.dataType == StringType && p.nullable =>
@@ -113,11 +115,13 @@ object FileFormatWriter extends Logging {
     }
     val empty2NullPlan = if (needConvert) ProjectExec(projectList, plan) else plan
 
+    // 分桶和排序
     val bucketIdExpression = bucketSpec.map { spec =>
       val bucketColumns = spec.bucketColumnNames.map(c => dataColumns.find(_.name == c).get)
       // Use `HashPartitioning.partitionIdExpression` as our bucket id expression, so that we can
       // guarantee the data distribution is same between shuffle and bucketed data source, which
       // enables us to only shuffle one side when join a bucketed table and a normal one.
+      // hash算法使用的是 Murmur3Hash
       HashPartitioning(bucketColumns, spec.numBuckets).partitionIdExpression
     }
     val sortColumns = bucketSpec.toSeq.flatMap {
@@ -126,6 +130,7 @@ object FileFormatWriter extends Logging {
 
     val caseInsensitiveOptions = CaseInsensitiveMap(options)
 
+    // 格式校验
     val dataSchema = dataColumns.toStructType
     DataSourceUtils.verifySchema(fileFormat, dataSchema)
     // Note: prepareWrite has side effect. It sets "job".
@@ -170,8 +175,12 @@ object FileFormatWriter extends Logging {
 
     // This call shouldn't be put into the `try` block below because it only initializes and
     // prepares the job, any exception thrown from here shouldn't cause abortJob() to be called.
+    // job准备
     committer.setupJob(job)
 
+    // 两个分支
+    // 如果排序已经排好，提交任务，写文件
+    // 否则 先排序，再写文件
     try {
       val rdd = if (orderingMatched) {
         empty2NullPlan.execute()
@@ -215,7 +224,9 @@ object FileFormatWriter extends Logging {
           ret(index) = res
         })
 
+      // 返回信息
       val commitMsgs = ret.map(_.commitMsg)
+
 
       committer.commitJob(job, commitMsgs)
       logInfo(s"Write Job ${description.uuid} committed.")
@@ -227,7 +238,7 @@ object FileFormatWriter extends Logging {
       ret.map(_.summary.updatedPartitions).reduceOption(_ ++ _).getOrElse(Set.empty)
     } catch { case cause: Throwable =>
       logError(s"Aborting job ${description.uuid}.", cause)
-      committer.abortJob(job)
+      committer.abortJob(job) // 异常任务中止
       throw new SparkException("Job aborted.", cause)
     }
   }

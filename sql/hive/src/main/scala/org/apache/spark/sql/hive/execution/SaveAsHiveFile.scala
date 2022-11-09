@@ -21,14 +21,11 @@ import java.io.{File, IOException}
 import java.net.URI
 import java.text.SimpleDateFormat
 import java.util.{Date, Locale, Random}
-
 import scala.util.control.NonFatal
-
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.hive.common.FileUtils
 import org.apache.hadoop.hive.ql.exec.TaskRunner
-
 import org.apache.spark.internal.io.FileCommitProtocol
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.catalog.CatalogTypes.TablePartitionSpec
@@ -43,6 +40,7 @@ import org.apache.spark.sql.hive.client.HiveVersion
 // Base trait from which all hive insert statement physical execution extends.
 private[hive] trait SaveAsHiveFile extends DataWritingCommand {
 
+  // hdfs临时目录
   var createdTempDir: Option[Path] = None
 
   protected def saveAsHiveFile(
@@ -54,6 +52,7 @@ private[hive] trait SaveAsHiveFile extends DataWritingCommand {
       customPartitionLocations: Map[TablePartitionSpec, String] = Map.empty,
       partitionAttributes: Seq[Attribute] = Nil): Set[String] = {
 
+    // 是否压缩，如果是orc根据table的properties实现压缩
     val isCompressed =
       fileSinkConf.getTableInfo.getOutputFileFormatClassName.toLowerCase(Locale.ROOT) match {
         case formatName if formatName.endsWith("orcoutputformat") =>
@@ -63,8 +62,9 @@ private[hive] trait SaveAsHiveFile extends DataWritingCommand {
           // have no impact because it uses table properties to store compression information.
           false
         case _ => hadoopConf.get("hive.exec.compress.output", "false").toBoolean
-    }
+      }
 
+    // 压缩配置
     if (isCompressed) {
       hadoopConf.set("mapreduce.output.fileoutputformat.compress", "true")
       fileSinkConf.setCompressed(true)
@@ -74,15 +74,18 @@ private[hive] trait SaveAsHiveFile extends DataWritingCommand {
         .get("mapreduce.output.fileoutputformat.compress.type"))
     } else {
       // Set compression by priority
+      // 从hive表的属性中获取压缩配置
       HiveOptions.getHiveWriteCompression(fileSinkConf.getTableInfo, sparkSession.sessionState.conf)
         .foreach { case (compression, codec) => hadoopConf.set(compression, codec) }
     }
 
+    // 通过反射生成 committer对象；由 spark.sql.sources.commitProtocolClass参数控制
     val committer = FileCommitProtocol.instantiate(
       sparkSession.sessionState.conf.fileCommitProtocolClass,
       jobId = java.util.UUID.randomUUID().toString,
       outputPath = outputLocation)
 
+    // 返回分区路径
     FileFormatWriter.write(
       sparkSession = sparkSession,
       plan = plan,
@@ -259,6 +262,7 @@ private[hive] trait SaveAsHiveFile extends DataWritingCommand {
     path1.startsWith(path2)
   }
 
+  // 随机执行id
   private def executionId: String = {
     val rand: Random = new Random
     val format = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss_SSS", Locale.US)
